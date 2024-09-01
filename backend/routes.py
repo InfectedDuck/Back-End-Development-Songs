@@ -51,3 +51,86 @@ def parse_json(data):
 ######################################################################
 # INSERT CODE HERE
 ######################################################################
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "OK"})
+
+@app.route('/count', methods=['GET'])
+def count():
+    try:
+        count = db.songs.count_documents({})
+        return jsonify({"count": count}), 200
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
+
+@app.route('/song', methods=['GET'])
+def songs():
+    try:
+        song_list = list(db.songs.find({}))
+        songs_json = parse_json(song_list)
+        return jsonify({"songs": songs_json}), 200
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
+
+@app.route('/song/<int:id>', methods=['GET'])
+def get_song_by_id(id):
+    try:
+        song = db.songs.find_one({"id": id})
+        if song:
+            song_json = parse_json(song)
+            return jsonify(song_json), 200
+        else:
+            return jsonify({"message": "song with id not found"}), 404
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
+
+@app.route('/song', methods=['POST'])
+def create_song():
+    try:
+        song = request.get_json()
+        existing_song = db.songs.find_one({"id": song["id"]})
+        if existing_song:
+            return jsonify({"Message": f"song with id {song['id']} already present"}), 302
+        result = db.songs.insert_one(song)
+        return jsonify({"inserted id": str(result.inserted_id)}), 201
+    
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
+
+@app.route('/song/<int:id>', methods=['PUT'])
+def update_song(id):
+    try:
+        updated_song = request.get_json()
+
+        existing_song = db.songs.find_one({"id": id})
+        if not existing_song:
+            return jsonify({"message": "song not found"}), 404
+        result = db.songs.update_one(
+            {"id": id},
+            {"$set": updated_song}
+        )
+
+        if result.modified_count > 0:
+            return jsonify({"_id": str(existing_song["_id"]), "id": id, **updated_song}), 201
+        else:
+            return jsonify({"message": "song found, but nothing updated"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
+
+@app.route('/song/<int:id>', methods=['DELETE'])
+def delete_song(id):
+    try:
+        result = db.songs.delete_one({"id": id})
+        if result.deleted_count == 0:
+            return jsonify({"message": "song not found"}), 404
+        return '', 204
+    except Exception as e:
+        app.logger.error(f"Error occurred: {str(e)}")
+        return jsonify({"error": "An error occurred"}), 500
